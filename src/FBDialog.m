@@ -444,12 +444,7 @@ params   = _params;
     NSURL* url = request.URL;
     
     if ([url.scheme isEqualToString:@"fbconnect"]) {
-        if (url.resourceSpecifier.length >= 10 && [[url.resourceSpecifier substringToIndex:10] isEqualToString:@"//success?"]) {
-            if (_frictionlessSettings.enabled) {
-                [self dialogSuccessHandleFrictionlessResponses:url];
-            }
-            [self dialogDidSucceed:url];
-        } else if ([[url.resourceSpecifier substringToIndex:8] isEqualToString:@"//cancel"]) {
+        if ([[url.resourceSpecifier substringToIndex:8] isEqualToString:@"//cancel"]) {
             NSString * errorCode = [self getStringFromUrl:[url absoluteString] needle:@"error_code="];
             NSString * errorStr = [self getStringFromUrl:[url absoluteString] needle:@"error_msg="];
             if (errorCode) {
@@ -461,6 +456,11 @@ params   = _params;
             } else {
                 [self dialogDidCancel:url];
             }
+        } else {
+            if (_frictionlessSettings.enabled) {
+                [self dialogSuccessHandleFrictionlessResponses:url];
+            }
+            [self dialogDidSucceed:url];
         }
         return NO;
     } else if ([_loadingURL isEqual:url]) {
