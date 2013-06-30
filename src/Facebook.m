@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 Facebook
+ * Copyright 2010-present Facebook.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,16 +20,10 @@
 #import "FBRequest.h"
 #import "FBError.h"
 #import "FBSessionManualTokenCachingStrategy.h"
-#import "FBSBJSON.h"
 #import "FBSession+Internal.h"
 #import "FBUtility.h"
 
 static NSString* kDialogBaseURL = @"https://m." FB_BASE_URL "/dialog/";
-static NSString* kGraphBaseURL = @"https://graph." FB_BASE_URL "/";
-static NSString* kRestserverBaseURL = @"https://api." FB_BASE_URL "/method/";
-
-static NSString* kFBAppAuthURLScheme = @"fbauth";
-static NSString* kFBAppAuthURLPath = @"authorize";
 static NSString* kRedirectURL = @"fbconnect://success";
 
 static NSString* kLogin = @"oauth";
@@ -143,9 +137,9 @@ static NSString *const FBexpirationDatePropertyName = @"expirationDate";
     _requestExtendingAccessToken.delegate = nil;
 
     [_session release];
-    
-    [_tokenCaching removeObserver:self forKeyPath:FBaccessTokenPropertyName];
-    [_tokenCaching removeObserver:self forKeyPath:FBexpirationDatePropertyName];
+    // remove KVOs for tokenCaching
+    [_tokenCaching removeObserver:self forKeyPath:FBaccessTokenPropertyName context:tokenContext];
+    [_tokenCaching removeObserver:self forKeyPath:FBexpirationDatePropertyName context:tokenContext];
     [_tokenCaching release];
 
     for (FBRequest* _request in _requests) {
@@ -252,7 +246,7 @@ static NSString *const FBexpirationDatePropertyName = @"expirationDate";
         self.hasUpdatedAccessToken = NO;
 
         // invalidate current session and create a new one with the same permissions
-        NSArray *permissions = self.session.permissions;
+        NSArray *permissions = self.session.accessTokenData.permissions;
         [self.session close];    
         self.session = [[[FBSession alloc] initWithAppID:_appId
                                              permissions:permissions
@@ -314,7 +308,7 @@ static NSString *const FBexpirationDatePropertyName = @"expirationDate";
         switch (status) {
             case FBSessionStateOpen:
                 // call the legacy session delegate
-                [self fbDialogLogin:session.accessToken expirationDate:session.expirationDate];
+                [self fbDialogLogin:session.accessTokenData.accessToken expirationDate:session.accessTokenData.expirationDate];
                 break;
             case FBSessionStateClosedLoginFailed:
                 { // prefer to keep decls near to their use
@@ -699,8 +693,7 @@ static NSString *const FBexpirationDatePropertyName = @"expirationDate";
             id fbid = [params objectForKey:@"to"];
             if (fbid != nil) {
                 // if value parses as a json array expression get the list that way
-                FBSBJsonParser *parser = [[[FBSBJsonParser alloc] init] autorelease];
-                id fbids = [parser objectWithString:fbid];
+                id fbids = [FBUtility simpleJSONDecode:fbid];
                 if (![fbids isKindOfClass:[NSArray class]]) {
                     // otherwise seperate by commas (handles the singleton case too)
                     fbids = [fbid componentsSeparatedByString:@","];
