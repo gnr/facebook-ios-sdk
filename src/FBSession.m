@@ -1929,13 +1929,6 @@ static FBSession *g_activeSession = nil;
 }
 
 
-<<<<<<< HEAD
-    NSMutableArray *newPermissions = [NSMutableArray arrayWithArray:permissions];
-    [newPermissions addObject:@"email"];
-    return [newPermissions autorelease];
-}
-=======
->>>>>>> acd4f57e7781dad4ffebcf658d56f96abfd96c1a
 
 + (void)deleteFacebookCookies {
     NSHTTPCookieStorage* cookies = [NSHTTPCookieStorage sharedHTTPCookieStorage];
