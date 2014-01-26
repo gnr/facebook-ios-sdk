@@ -15,24 +15,26 @@
  */
 
 #import "FBSession.h"
-#import "FBSystemAccountStoreAdapter.h"
 #import "FBSessionAppEventsState.h"
+#import "FBSystemAccountStoreAdapter.h"
 
 extern NSString *const FBLoginUXClientState;
 extern NSString *const FBLoginUXClientStateIsClientState;
 extern NSString *const FBLoginUXClientStateIsOpenSession;
 extern NSString *const FBLoginUXClientStateIsActiveSession;
+extern NSString *const FBLoginUXResponseTypeToken;
+extern NSString *const FBLoginUXResponseType;
 
 extern NSString *const FBInnerErrorObjectKey;
-
+extern NSString *const FBSessionDidSetActiveSessionNotificationUserInfoIsOpening;
 extern NSString *const FacebookNativeApplicationLoginDomain;
 
 @interface FBSession (Internal)
 
-@property(readonly) FBSessionDefaultAudience lastRequestedSystemAudience;
-@property(readonly, retain) FBSessionAppEventsState *appEventsState;
-@property(readonly) NSThread *affinitizedThread;
-@property(atomic, readonly) BOOL isRepairing;
+@property (readonly) FBSessionDefaultAudience lastRequestedSystemAudience;
+@property (readonly, retain) FBSessionAppEventsState *appEventsState;
+@property (readonly) NSThread *affinitizedThread;
+@property (atomic, readonly) BOOL isRepairing;
 
 - (void)refreshAccessToken:(NSString*)token expirationDate:(NSDate*)expireDate;
 - (BOOL)shouldExtendAccessToken;
@@ -59,6 +61,12 @@ extern NSString *const FacebookNativeApplicationLoginDomain;
 
 + (BOOL)openActiveSessionWithPermissions:(NSArray*)permissions
                             allowLoginUI:(BOOL)allowLoginUI
+                         defaultAudience:(FBSessionDefaultAudience)defaultAudience
+                       completionHandler:(FBSessionStateHandler)handler;
+
++ (BOOL)openActiveSessionWithPermissions:(NSArray*)permissions
+                           loginBehavior:(FBSessionLoginBehavior)loginBehavior
+                                  isRead:(BOOL)isRead
                          defaultAudience:(FBSessionDefaultAudience)defaultAudience
                        completionHandler:(FBSessionStateHandler)handler;
 @end
