@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
-#import <SenTestingKit/SenTestingKit.h>
+#import <XCTest/XCTest.h>
+
+#import "FBSDKMacros.h"
 
 @class FBTestBlocker;
 
 // Methods in the base class will generate successful results using these strings
 
-extern NSString *const kAuthenticationTestValidToken;
-extern NSString *const kAuthenticationTestAppId;
+FBSDK_EXTERN NSString *const kAuthenticationTestValidToken;
+FBSDK_EXTERN NSString *const kAuthenticationTestAppId;
 
-@interface FBAuthenticationTests : SenTestCase {
-    @protected
-    
+@interface FBAuthenticationTests : XCTestCase {
+@protected
+
     FBTestBlocker *_blocker;
 }
 
@@ -42,12 +44,12 @@ supportMultitasking:(BOOL)supportMultitasking;
 - (void)mockSession:(id)mockSession
 expectFacebookAppAuth:(BOOL)expect
                 try:(BOOL)try
-            results:(NSDictionary*)results;
+results:(NSDictionary *)results;
 
 - (void)mockSession:(id)mockSession
    expectSafariAuth:(BOOL)expect
                 try:(BOOL)try
-            results:(NSDictionary*)results;
+results:(NSDictionary *)results;
 
 - (void)mockSession:(id)mockSession
 expectLoginDialogAuth:(BOOL)expect
