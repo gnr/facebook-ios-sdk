@@ -18,7 +18,7 @@
 
 #import <UIKit/UIKit.h>
 
-#import "FBAmbientDeviceInfo.h"
+#import "FBAppEvents+Internal.h"
 #import "FBBoltsMeasurementEventListener.h"
 #import "FBError.h"
 #import "FBInternalSettings.h"
@@ -80,11 +80,11 @@ static BOOL g_enableLegacyGraphAPI = NO;
     // when the app becomes active by any mean,  kick off the initialization.
     __block __weak id initializeObserver;
     NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-    initializeObserver = [center addObserverForName:UIApplicationDidBecomeActiveNotification
+    initializeObserver = [center addObserverForName:UIApplicationDidFinishLaunchingNotification
                                              object:nil
                                               queue:nil
                                          usingBlock:^(NSNotification *note) {
-                                             [self FBSDKInitialize];
+                                             [self FBSDKInitializeWithLaunchData:note.userInfo];
                                              // de-register the observer after initialization is done.
                                              [center removeObserver:initializeObserver];
                                          }];
@@ -92,10 +92,17 @@ static BOOL g_enableLegacyGraphAPI = NO;
 
 // Initialize SDK settings.
 // Don't call this function in any place else. It has been called when the class is loaded.
-+ (void)FBSDKInitialize {
++ (void)FBSDKInitializeWithLaunchData:(NSDictionary *)launchData {
     static dispatch_once_t sdkConfigDone = 0;
     dispatch_once(&sdkConfigDone, ^{
+        // Register Listener for Bolts measurement events
         [FBBoltsMeasurementEventListener defaultListener];
+
+        // Set App Event SourceApplication when launch. But this is not going to update the value if app has already launched.
+        [FBAppEvents setSourceApplication:launchData[UIApplicationLaunchOptionsSourceApplicationKey]
+                                  openURL:launchData[UIApplicationLaunchOptionsURLKey]];
+        // Register on UIApplicationDidEnterBackgroundNotification events to reset source application data.
+        [FBAppEvents registerAutoResetSourceApplication];
     });
 }
 
@@ -409,8 +416,7 @@ static BOOL g_enableLegacyGraphAPI = NO;
                                            if (advertiserID) {
                                                [installActivity setObject:advertiserID forKey:@"advertiser_id"];
                                            }
-                                           [FBUtility extendDictionaryWithEventUsageLimitsAndUrlSchemes:installActivity accessAdvertisingTrackingStatus:YES];
-                                           [FBAmbientDeviceInfo extendDictionaryWithDeviceInfo:installActivity];
+                                           [FBUtility updateParametersWithEventUsageLimitsAndBundleInfo:installActivity accessAdvertisingTrackingStatus:YES];
 
                                            [installActivity setObject:[NSNumber numberWithBool:isAutoPublish].stringValue forKey:@"auto_publish"];
 

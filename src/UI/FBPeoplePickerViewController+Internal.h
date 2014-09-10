@@ -14,10 +14,20 @@
  * limitations under the License.
  */
 
-#import <Foundation/Foundation.h>
+#import "FBPeoplePickerViewController.h"
 
-@interface FBAmbientDeviceInfo : NSObject
+@class FBGraphObjectTableDataSource;
+@class FBRequest;
 
-+ (void)extendDictionaryWithDeviceInfo:(NSMutableDictionary *)dictionary;
+@interface FBPeoplePickerViewController ()
+
++ (NSString *)graphAPIName;
+
++ (FBRequest *)requestWithUserID:(NSString *)userID
+                          fields:(NSSet *)fields
+                      dataSource:(FBGraphObjectTableDataSource *)datasource
+                         session:(FBSession *)session;
+
++ (NSString *)cacheIdentity;
 
 @end

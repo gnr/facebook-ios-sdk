@@ -16,7 +16,7 @@
 
 #import "FacebookSDK.h"
 #import "FBAppEvents.h"
-#import "FBUtility.h"
+#import "FBUtility+Private.h"
 #import "FBGraphObject.h"
 #import "FBLogger.h"
 #import "FBRequest+Internal.h"
@@ -26,6 +26,7 @@
 #import "FBSettings+Internal.h"
 
 #import <AdSupport/AdSupport.h>
+#include <mach-o/dyld.h>
 #include <sys/time.h>
 
 static const double APPSETTINGS_STALE_THRESHOLD_SECONDS = 60 * 60; // one hour.
@@ -304,9 +305,9 @@ static const NSString *kAppSettingsFieldLoginTooltipContent = @"gdpv4_nux_conten
     return status;
 }
 
-+ (void)extendDictionaryWithEventUsageLimitsAndUrlSchemes:(NSMutableDictionary *)parameters
++ (void)updateParametersWithEventUsageLimitsAndBundleInfo:(NSMutableDictionary *)parameters
                           accessAdvertisingTrackingStatus:(BOOL)accessAdvertisingTrackingStatus {
-    
+
     // Only add the iOS global value if we have a definitive allowed/disallowed on advertising tracking.  Otherwise,
     // absence of this parameter is to be interpreted as 'unspecified'.
     if (accessAdvertisingTrackingStatus) {
@@ -321,7 +322,10 @@ static const NSString *kAppSettingsFieldLoginTooltipContent = @"gdpv4_nux_conten
     [parameters setObject:[[NSNumber numberWithBool:!FBSettings.limitEventAndDataUsage] stringValue] forKey:@"application_tracking_enabled"];
 
     static dispatch_once_t fetchBundleOnce;
+    static NSString *bundleIdentifier;
     static NSMutableArray *urlSchemes;
+    static NSString *longVersion;
+    static NSString *shortVersion;
 
     dispatch_once(&fetchBundleOnce, ^{
         NSBundle *mainBundle = [NSBundle mainBundle];
@@ -332,11 +336,24 @@ static const NSString *kAppSettingsFieldLoginTooltipContent = @"gdpv4_nux_conten
                 [urlSchemes addObjectsFromArray:schemesForType];
             }
         }
+        bundleIdentifier = mainBundle.bundleIdentifier;
+        longVersion = [mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"];
+        shortVersion = [mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
     });
 
+    if (bundleIdentifier.length > 0) {
+        [parameters setObject:bundleIdentifier forKey:@"bundle_id"];
+    }
     if (urlSchemes.count > 0) {
         [parameters setObject:[FBUtility simpleJSONEncode:urlSchemes] forKey:@"url_schemes"];
     }
+    if (longVersion.length > 0) {
+        [parameters setObject:longVersion forKey:@"bundle_version"];
+    }
+    if (shortVersion.length > 0) {
+        [parameters setObject:shortVersion forKey:@"bundle_short_version"];
+    }
+
 }
 
 #pragma mark - JSON Encode / Decode
@@ -572,6 +589,54 @@ static const NSString *kAppSettingsFieldLoginTooltipContent = @"gdpv4_nux_conten
     [[UIDevice currentDevice] isMultitaskingSupported];
 }
 
++ (BOOL)isUIKitLinkedOnOrAfter:(FBIOSVersion)version {
+    static NSInteger UIKitMajorVersion;
+
+    static dispatch_once_t getVersionOnce;
+    dispatch_once(&getVersionOnce, ^{
+        enum {
+            kMajorVersionMask = 0xFFFF0000,
+            kMinorVersionMask = 0x0000FF00,
+            kPatchVersionMask = 0x000000FF,
+
+            kMajorVersionShift = 16,
+            kMinorVersionShift =  8,
+            kPatchVersionShift =  0,
+        };
+
+        int32_t linkedWithVersion = NSVersionOfLinkTimeLibrary("UIKit");
+        if (linkedWithVersion != -1) {
+            UIKitMajorVersion = (linkedWithVersion & kMajorVersionMask) >> kMajorVersionShift;
+        } else {
+            // Somehow the main executable did not link against UIKit, so the answer is NO.
+            UIKitMajorVersion = NSIntegerMin;
+        }
+    });
+
+    static const NSInteger UIKitLibraryVersionNumbers[] = {
+        0x0944, // 6.0
+        0x094c, // 6.1
+        0x0b57, // 7.0
+        0x0b77, // 7.1
+        0x0ce6, // 8.0 Beta 5
+    };
+    _Static_assert(sizeof(UIKitLibraryVersionNumbers) / sizeof(UIKitLibraryVersionNumbers[0]) == FBIOSVersionCount, "The iOS version enum to UIKit library version number table is out of sync.");
+
+    return (version >= 0 && version < sizeof(UIKitLibraryVersionNumbers) / sizeof(UIKitLibraryVersionNumbers[0])) && // sanity check
+        UIKitMajorVersion >= UIKitLibraryVersionNumbers[version];
+}
+
++ (BOOL)isRunningOnOrAfter:(FBIOSVersion)version {
+    static NSOperatingSystemVersion systemVersion;
+
+    static dispatch_once_t getVersionOnce;
+    dispatch_once(&getVersionOnce, ^{
+        systemVersion = FBUtilityGetSystemVersion();
+    });
+
+    return FBUtilityIsSystemVersionIOSVersionOrLater(systemVersion, version);
+}
+
 + (BOOL)isSystemAccountStoreAvailable {
     id accountStore = nil;
     id accountTypeFB = nil;
@@ -593,3 +658,47 @@ static const NSString *kAppSettingsFieldLoginTooltipContent = @"gdpv4_nux_conten
 }
 
 @end
+
+NSOperatingSystemVersion FBUtilityGetSystemVersion(void) {
+    NSOperatingSystemVersion systemVersion = { 0 };
+
+    if ([NSProcessInfo instancesRespondToSelector:@selector(operatingSystemVersion)]) {
+        systemVersion = [NSProcessInfo processInfo].operatingSystemVersion;
+    } else {
+        NSArray *components = [[UIDevice currentDevice].systemVersion componentsSeparatedByString:@"."];
+        switch (components.count) {
+            default:
+            case 3:
+                systemVersion.patchVersion = [components[2] integerValue];
+                // fall through
+            case 2:
+                systemVersion.minorVersion = [components[1] integerValue];
+                // fall through
+            case 1:
+                systemVersion.majorVersion = [components[0] integerValue];
+                break;
+
+            case 0:
+                systemVersion.majorVersion = NSClassFromString(@"UIDynamicBehavior") ? 7 : 6;
+                break;
+        }
+    }
+
+    return systemVersion;
+}
+
+BOOL FBUtilityIsSystemVersionIOSVersionOrLater(NSOperatingSystemVersion systemVersion, FBIOSVersion version) {
+    static const NSOperatingSystemVersion IOSVersionNumbers[] = {
+        { 6, 0, 0 },
+        { 6, 1, 0 },
+        { 7, 0, 0 },
+        { 7, 1, 0 },
+        { 8, 0, 0 },
+    };
+    _Static_assert(sizeof(IOSVersionNumbers) / sizeof(IOSVersionNumbers[0]) == FBIOSVersionCount, "The iOS version enum to iOS version number table is out of sync.");
+
+    return (version >= 0 && version < sizeof(IOSVersionNumbers) / sizeof(IOSVersionNumbers[0])) && // sanity check
+        (systemVersion.majorVersion > IOSVersionNumbers[version].majorVersion ||
+        (systemVersion.majorVersion == IOSVersionNumbers[version].majorVersion && systemVersion.minorVersion > IOSVersionNumbers[version].minorVersion) ||
+        (systemVersion.majorVersion == IOSVersionNumbers[version].majorVersion && systemVersion.minorVersion == IOSVersionNumbers[version].minorVersion && systemVersion.patchVersion >= IOSVersionNumbers[version].patchVersion));
+}

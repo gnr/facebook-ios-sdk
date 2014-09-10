@@ -290,6 +290,7 @@ NSString *const FBAppLinkInboundEvent = @"fb_al_inbound";
           withSession:(FBSession *)session
       fallbackHandler:(FBAppCallHandler)handler {
     FBSession *workingSession = session ?: FBSession.activeSessionIfExists;
+    [FBAppEvents setSourceApplication:sourceApplication openURL:url];
 
     // Wrap the fallback handler to intercept login flow for FBSession
     FBAppCallHandler sessionHandler = ^(FBAppCall *call) {
@@ -499,7 +500,7 @@ NSString *const FBAppLinkInboundEvent = @"fb_al_inbound";
         [deferredAppLinkParameters setObject:advertiserID forKey:@"advertiser_id"];
     }
 
-    [FBUtility extendDictionaryWithEventUsageLimitsAndUrlSchemes:deferredAppLinkParameters accessAdvertisingTrackingStatus:YES];
+    [FBUtility updateParametersWithEventUsageLimitsAndBundleInfo:deferredAppLinkParameters accessAdvertisingTrackingStatus:YES];
 
     FBRequest *deferredAppLinkRequest = [[[FBRequest alloc] initForPostWithSession:nil
                                                                          graphPath:[NSString stringWithFormat:@"%@/activities", appID, nil]
